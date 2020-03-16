@@ -1,3 +1,15 @@
+---
+layout:     post
+title:      RippleNet
+subtitle:   Propagating User Preferences on the Knowledge Graph for Recommender Systems
+date:       2019-01-08
+author:     weber
+header-img: img/post-bg-ios9-web.jpg
+catalog: true
+tags:
+    - recommender systems
+    - knowledge graph
+---
 论文：[RippleNet: Propagating User Preferences on the Knowledge Graph for Recommender Systems](http://xueshu.baidu.com/usercenter/paper/show?paperid=38a152d897b7138f4430ca2012b8e3b5&site=xueshu_se&hitarticle=1)
 ，CIKM，2018，Microsoft Research Asia & Meituan AI Lab
  # 1. 应用背景
