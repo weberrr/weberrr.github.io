@@ -1,8 +1,8 @@
 ---
 layout:     post
-title:      RippleNet
-subtitle:   Propagating User Preferences on the Knowledge Graph for Recommender Systems
-date:       2019-01-08
+title:      推荐系统&知识图谱(2)---RippleNet
+subtitle:   RippleNet:Propagating User Preferences on the Knowledge Graph for Recommender Systems
+date:       2019-09-15
 author:     weber
 header-img: img/post-bg-ios9-web.jpg
 catalog: true
