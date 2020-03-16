@@ -10,13 +10,12 @@ tags:
     - recommender systems
     - knowledge graph
 ---
-# 0. 简介
+推荐系统&知识图谱(2)---RippleNet
 
 论文：[RippleNet: Propagating User Preferences on the Knowledge Graph for Recommender Systems](http://xueshu.baidu.com/usercenter/paper/show?paperid=38a152d897b7138f4430ca2012b8e3b5&site=xueshu_se&hitarticle=1)
 ，CIKM，2018，Microsoft Research Asia & Meituan AI Lab
 
- # 1.应用背景
-
+ # 1. 应用背景
 与 DKN 一样，RippleNet 也是利用知识图谱 (Knowledge Graph,KG) 作为辅助信息 (side information) 来进行推荐的一种方法。
 
 ![Knowledge Graph](https://tva1.sinaimg.cn/large/00831rSTly1gcvtoujorgj30il0dzq5q.jpg)
