@@ -1,0 +1,219 @@
+---
+layout:     post
+title:      推荐系统&知识图谱(1)---DKN
+subtitle:   DKN: Deep Knowledge-Aware Network for News Recommendation
+date:       2019-01-06
+author:     weber
+header-img: img/post-bg-ios9-web.jpg
+catalog: true
+tags:
+    - recommender systems
+    - knowledge graph
+---
+
+最近图网络看的比较多，停更经典模型，分享些图网络内容。
+论文：[DKN: Deep Knowledge-Aware Network for News Recommendation](http://xueshu.baidu.com/usercenter/paper/show?paperid=790e73a6cba8bf07cf48e1ba4a018c48&site=xueshu_se&hitarticle=1)，WWW，2018，Microsoft Research Asia
+# 1. 应用背景
+本文来自微软亚研院，对标的应用场景是微软 Bing News 的新闻推荐。
+不同于传统的静态物品推荐，在新闻推荐领域，有三个主要问题：
+**1.新闻文章有高度时间敏感性。**如下图所示，新闻的持续时间不长，过时的新闻很快就会被较新的新闻所取代，导致传统的基于ID的协同过滤失效。
+![](https://upload-images.jianshu.io/upload_images/6802002-a15eab3ca81d4dbe.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/350)
+**2.用户对新闻内容具有明显倾向性。**一般一个用户的阅读过的文章属于几个特定的主题，如何利用用户的阅读历史去做推荐是重点所在。
+**3.新闻类文章内容浓缩度高，包含大量实体。**如下图所示，用户极有可能选择阅读与历史交互文章具有紧密知识联系的新闻。而以往的模型只停留在字面的语义隐向量和词共现关系上，没有考虑深层的知识层面的关系。
+![](https://upload-images.jianshu.io/upload_images/6802002-60d8768aff281e9f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+DKN主要就是利用新闻在知识层面的相近度，去发掘用户可能感兴趣的相关新闻。
+
+# 2. 相关知识铺垫
+## 2.1 Knowledge Graph
+知识图谱（Knowledge Graph）于2012年5月17日由Google正式提出，其初衷是为了提高搜索引擎的能力，改善用户的搜索质量以及搜索体验。随着人工智能的技术发展和应用，知识图谱逐渐成为关键技术之一，现已被广泛应用于智能搜索、智能问答、个性化推荐、内容分发等领域。
+KG 由实体和边组成，数据形式一般为三元组：$(h,r,t)$。$h$为头结点，表示一个实体；$t$为尾结点，表示一个实体；$r$为两实体间的关系。
+## 2.2 Knowledge Graph Embedding
+Knowledge Graph Embedding(KGE) 是为 Knowledge Graph(KG) 中的每个实体和关系学习得到一个低维的 Embedding 表示。KGE 学习模型分为两类：基于距离的平移模型(distance-based translational models)和基于语义的匹配模型(semantic-based matching models)。
+### 2.2.1 distance-based translational models
+基于距离的平移模型使用基于距离的评分函数来评估三元组的概率，将尾结点视为头结点和关系平移得到的结果。代表方法有TransE、TransH、TransR、TransD等。
+以TransE为例，简单说明下如何 KG Embedding：
+**TransE：**
+TransE希望三元组$(h,r,t)$满足$\vec{h} + \vec{r} ≈ \vec{t}$，即如图所示：
+![TransE](https://upload-images.jianshu.io/upload_images/6802002-277d041ff314e9c8.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/240)
+因此，TransE的 Score function 为：$f_r(h,t)=||h + r -t||^2_2$
+TransE是最简单的，不同的 Embedding 方法主要就是 $f_r(h,t)$ 的定义方式不同。
+
+>感兴趣可以去阅读相关paper：
+>TransE，NIPS 2013，[Translating embeddings for modeling multi-relational data]()
+TransH，AAAI 2014，[Knowledge graph embedding by translating on hyperplanes]()
+TransA，arXiv 2015，[An adaptive approach for knowledge graph embedding]()
+TransG，arxiv2015，[A Generative Mixture Model for Knowledge Graph Embedding]()
+TransR，AAAL 2015，[Learning Entity and Relation Embeddings for Knowledge Graph Completion]()
+TransD，ACL 2015，[Knowledge graph embedding via dynamic mapping matrix]()
+>*还有很多2018,2019年的介绍Embedding方法的新paper，但还没读，不确定是不是distance-based，故未列在这里*
+
+本文作者实验时将各种distance-based的KGE方法进行了实验比较，TransD实验结果最好。
+![KGE](https://upload-images.jianshu.io/upload_images/6802002-5873ed2d95b50470.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/640)
+
+### 2.2.2 semantic-based matching models
+基于语义的匹配模型使用基于相似度的评分函数评估三元组的概率，将实体和关系映射到隐语义空间中，来进行相似度度量。代表方法有MLP、SME、NTN、NAM等。
+以MLP为例，MLP结构相对简单，如下图所示，不再作说明。
+![MLP](https://upload-images.jianshu.io/upload_images/6802002-d6357d276ab523f6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/340)
+## 2.3 Kim CNN
+论文：[Convolutional neural networks for sentence classification](http://xueshu.baidu.com/usercenter/paper/show?paperid=7ea81182039becbb82a22aaae8099c15&site=xueshu_se&hitarticle=1)，Kim Y，2014
+Kim CNN是一种从句子中提取 Embedding 的方法，其结构如图所示。
+![Kim CNN](https://upload-images.jianshu.io/upload_images/6802002-071fed15ef9a78be.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+**初始输入**：$n×k$ 的句子二维矩阵，其中 $n$ 为句子中 word 的个数，$k$ 为word的 embedding 维度(一般使用word2vec预训练值)。
+**卷积**：卷积核采用多个不同尺寸的卷积核（类似Inception），举例来说，假设卷积核有3种，取卷积核长度$h$分别为 2,3,4，则三种卷积核尺寸为$2*k$,$3*k$,$4*k$，卷机核数量分别取$n_0$,$n_1$,$n_2$。
+则3种卷积核分别与矩阵做卷积，第一种$h=3,num=n_0$的卷积核，得到$(n-2+1)*1*n_0$的矩阵。
+**池化**：$(n-2+1)*1*n_0$的矩阵按列池化，得到$1*n_0$的向量，最终将3种卷积结果拼接在一起，得到$1*(n_0+n_1+n_2)$的向量。
+**FC**：（如果有需要的话）再将池化结果过一层全连接，变成固定长度的向量。
+>DKN作者使用Kim CNN把一篇 news 的 title 信息变成了一个定长的向量。
+## 2.4 Attention
+Attention机制由Google 2017年提出，通俗的讲就是把注意力集中放在重要的点上，网上关于attention的学习资料很多，放了2篇我觉得讲解最为通透的链接在这里。
+DKN中主要使用Attention来对不同的emb进行加权求和时的权值计算，利用attention来强调重要的emb的权值。
+>参考学习资料：
+>1.[《Attention is All You Need》](https://arxiv.org/abs/1706.03762)，2017，Google
+>2.[ 深度学习中的注意力机制](https://mp.weixin.qq.com/s/tXLCR8H2OjyD6Rsjd7fWEA)，2017，张俊林
+>3.[《Attention is All You Need》浅读（简介+代码）](https://www.spaces.ac.cn/archives/4765)，2018，苏建林
+
+# 3. DKN模型框架
+## 3.1 整体结构
+![DKN](https://upload-images.jianshu.io/upload_images/6802002-f146041b23c751db.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+DKN(Deep Knowledge-aware Network)的整体模型结构如上图右半部分所示。
+输入分两部分：候选新闻和用户点击过的新闻集合。输入的新闻通过 KCNN 模块转换为对应的embedding，通过Attention层计算 candidate news embedding 和 user's clicked news embedding 之间的attention权重，并将历史新闻embedding加权求和。在顶层拼接两部分向量后，通过MLP来拟合用户点击此条候选新闻的概率。
+## 3.2 知识提取(Knowledge Distillation)
+知识蒸馏即把一篇 news 对应的 title 文本信息，转为 对应的 embedding。文中使用了3个 embedding：标题中每个单词的word embedding（由word2vec预训练得到），每个单词对应实体的entity embedding，每个实体上下文的context embedding。
+### 3.2.1 entity embedding
+获取Entity Embedding需要以下四步：
+
+![](https://upload-images.jianshu.io/upload_images/6802002-953421ad3a583bcd.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+**1. Entity Linking：**识别出标题中的实体。
+>*实体链接相关参考：*
+>[Learning to link with wikipedia](),CIKM 2008
+>[Re-ranking for joint named-entity recognition and linking](),CIKM 2013
+>[百度实体链接比赛后记](https://mp.weixin.qq.com/s/hIGmW_J5xEvLUXa4hFHzsA),2019 苏剑林
+
+**2. Sub-graph Construction：**根据标题中识别出的实体集合，得到与实体one hop内的所有实体和关系所构成的子图。
+**3. KGE：**利用distance-based translational embedding方法如TransD来得到emb。
+**4. Entity mbedding：**得到标题中单词对应的实体embedding矩阵。
+### 3.2.2 context embedding
+![](https://upload-images.jianshu.io/upload_images/6802002-eb8a0d761abd37f0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/840)
+Context embedding即标题中对应实体的上下文实体集的隐向量。通过KG学习得到的entity embedding可以在表示实体信息，但仍有关联信息损失，可以利用实体的上下文去更好的刻画该实体。如上图所示。
+因为每个实体的上下文实体有多个，为保证维度相同，取均值：
+$$\overline{e} =\frac{1}{|context(e)|}\sum_{e_i\in context(e)}e_i$$
+##3.3 Transformation
+在3.2知识抽取部分，我们得到了 word embedding $[w_1\ w_2\ w_3\ ...\ w_n]$，entity embedding $[e_1\ e_2\ e_3\ ... e_n]$，context embedding $[\overline{e}_1\ \overline{e}_2\ \overline{e}_3\ ...\ \overline{e}_n]$，最简单的处理方式是将三者拼接，即$W=[w_1\ w_2\ ...\ w_n\ e_1\ e_2\ ...\ \overline{e}_1\ \overline{e}_2\ ...]$，但这样做有一些限制：
+1. 直接拼接破坏了单词和实体对应的联系，不知道它们的对齐方式；
+2. 单词embedding和实体embedding是通过不同方法学习到的，不适合在同一向量空间进行计算；
+3. 直接拼接需要word与entity隐向量的维度相同，但实际中二者的最优维度可能不同。
+
+因此，作者使用 **transformation function** 对实体emb进行转换，映射到和word emb同一空间：
+transformed entity emb：$g(e_{1:n})=[g(e_{1})\ g(e_{2})\ ...\ g(e_{n})]$
+transformed context emb：$g(\overline{e}_{1:n})=[g(\overline{e}_{1})\ g(\overline{e}_{2})\ ...\ g(\overline{e}_{n})]$
+$g$为转换函数，可以是线性的，也可以是非线性的，即$g(e)=Me$或$g(e)=tanh(Me+b)$。其中$M\in R^{\ d \times k}$是可训练的转移矩阵参数。
+转换完的 multi-channel 输入为：
+$$W=[w_1\ g(e_{1})\ g(\overline{e}_{1})][w_2\ g(e_{2})\ g(\overline{e}_{2})]...[w_n\ g(e_{n})\ g(\overline{e}_{n})]\in R^{\ d \times n \times 3}$$
+
+
+## 3.4 KCNN(Knowledge-aware CNN)
+![KCNN](https://upload-images.jianshu.io/upload_images/6802002-c3a0a02ec7da23b4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/840)
+2.3介绍了Kim CNN，3.3介绍了multi-channel input，KCNN就没什么特别的了。与Kim相同，就是使用多种不同尺寸的卷积核，来提取不同的特征，最后按列pooling。
+所选取的卷积核尺寸 $h \in R ^{\ d \times l\times 3}$，$l$控制不同的卷积窗口大小，设有$m_l$个该卷积核。则每个卷积核的计算结果$c^l_1 \in R^{(n-l+1)\times1}$，总共为$c^l=[c^l_1\ c^l_2\ ...\ c^l_m] \in R^{(n-l+1)\times{m_l}}$，取pooling后为$c^l_{max}=\max\{c_1^l,c_2^l,...,c^l_{n-l+1}\}\in R^{1 \times{m_l}}$。
+多个尺寸的卷积核，最终pooling结果向量长度为 $m_{l_1}+m_{l_2}+...+m_{l_z}$，其中z为不同尺寸卷积核的种类数。
+## 3.5 attention Net
+![attention](https://upload-images.jianshu.io/upload_images/6802002-24198428a903f01f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+使用KCNN获取到用户点击过的每篇新闻的向量表示以后，作者并没有简单地将emb做 sum/avg 来代表该用户，而是计算候选文档对于用户每篇点击文档的 attention，利用attention作为权值，对用户所有点击过的新闻的emb加权求和，从而改变不同历史新闻对用户影响的大小。
+**具体做法：**
+1.concat：将候选新闻的 emb 和一篇历史新闻的 emb 拼接起来，得到DNN输入；
+2.DNN：将输入通过一个MLP，将所有历史新闻输出值的 softmax 作为权值；
+3.加权求和：将所有历史新闻 emb 和对应的 softmax 权值相乘后求和，得到 user emb。
+#4. 实验结果
+## 4.1 实验数据
+交互数据用的是 Bing News 的用户点击日志，包含用户id，新闻url，新闻标题，点击与否（0/1）。2016年10月16日到2017年7月11号的数据作为训练集，2017年7月12号到8月11日的数据作为测试集。
+知识图谱数据用的是 [Microsoft Satori](https://searchengineland.com/library/bing/bing-satori)。
+![](https://upload-images.jianshu.io/upload_images/6802002-99377eb4f73a59f1.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/640)
+## 4.2 实验结果
+![](https://upload-images.jianshu.io/upload_images/6802002-7d4b83be1c0048bf.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![](https://upload-images.jianshu.io/upload_images/6802002-cb1f3f344cac3a39.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![](https://upload-images.jianshu.io/upload_images/6802002-0a1f7b08c779bd2b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+实验表明，在使用DKN模型时，同时使用实体embedding和上下文embedding、使用TransD方法、使用非线性变换、使用attention机制可以获得更好的预测效果。
+# 5. DKN总结
+优点：
+1.解决了新闻推荐的三大难题
+2.创新性的使用知识图谱的上下文实体去扩展的实体
+3.将不同空间的向量使用多通道拼接，使用CNN去过滤
+3.用attention去得到用户历史交互新闻的权值，使用加权求和而不是简单的均值
+缺点：
+1.DKN是基于内容的，entity emb需要提前训练获得，导致DKN不是end-to-end训练。
+2.DKN很难融合除了文字以外的其他边信息。
+# 6. DKN实现
+github：[https://github.com/princewen/tensorflow_practice/tree/master/recommendation/Basic-DKN-Demo](https://github.com/princewen/tensorflow_practice/tree/master/recommendation/Basic-DKN-Demo)
+因为DKN是基于内容的，所以初始的数据处理和预训练很重要。
+## 初始数据输入：
+**raw_train.txt & raw_test.txt**
+`user_id[TAB]news_title[TAB]label[TAB]entity_info`
+```
+106500	ben affleck dating saturday night live producer lindsay shookus jennifer garner divorce	1	902:Ben Affleck;5731:Jennifer Garner
+19800	van plows pedestrians near london finsbury park mosque	0	33014:Finsbury Park Mosque
+112800	architect david adjaye talks new winter park library	1	26608:Architect David Adjaye
+112800	renowned architect david adjaye begin work winter park library	1	26608:architect David Adjaye
+```
+**kg.txt**
+`head[TAB]relation[TAB]tail`
+```
+95	16	96
+97	18	98
+99	12	100
+101	12	102
+103	2	19
+```
+## word2emb
+将title句子语料作为输入预训练，得到word_emb
+```python
+# corpus ：[(van plows pedestrians near london finsbury park mosque).split(' '),sentence2.split(' '),...]
+w2v_model = gensim.models.Word2Vec(corpus, size=WORD_EMBEDDING_DIM, min_count=1, workers=16)
+
+# word2index is a dict for word:idx 
+w_embeddings = np.zeros([len(word2index) + 1, WORD_EMBEDDING_DIM])
+for index, word in enumerate(word2index.keys()):
+        embedding = w2v_model[word] if word in model.wv.vocab else np.zeros(WORD_EMBEDDING_DIM)
+        w_embeddings[index + 1] = embedding
+```
+## entity2emb
+先将`kg.txt`内的 `head`,`tail` id读入，得到 `entity2id.txt`,同理得`relation2id.txt`,`triple2id.txt`
+```bash
+reading knowledge graph ...
+writing triples to triple2id.txt ...
+triple size: 772258
+writing entities to entity2id.txt ...
+entity size: 36350
+writing relations to relation2id.txt ...
+relation size: 1166
+```
+调用现成的 KGE 方法包，去训练得到 entity_emb
+```
+$ # (note: you can also choose other KGE methods)
+$ g++ transE.cpp -o transE -pthread -O3 -march=native 
+$ ./transE
+```
+## 输入对齐
+因为一个title的长度不定长，title对应的entity也不定长，但输入网络的维度需要固定，所以需要对齐。作者的做法是用 0 填充至定长。
+当输入一篇news的title时，具体代码做法：
+```
+MAX_TITLE_LENGTH = 10
+
+array = title.split(' ')
+
+word_encoding = ['0'] * MAX_TITLE_LENGTH
+entity_encoding = ['0'] * MAX_TITLE_LENGTH
+
+point = 0
+for s in array:
+    if s in word2index:
+        word_encoding[point] = str(word2index[s])
+            if s in local_map: # local map is the entity list that the title contains
+                entity_encoding[point] = str(local_map[s])
+            point += 1
+        if point == MAX_TITLE_LENGTH:
+            break
+word_encoding = ','.join(word_encoding)
+entity_encoding = ','.join(entity_encoding)
+```
+数据处理清楚之后，就是常规的过DNN训练，如下图所示。
+![DKN](https://upload-images.jianshu.io/upload_images/6802002-f146041b23c751db.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)

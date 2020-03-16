@@ -1,0 +1,75 @@
+论文：[Attentive Knowledge Graph Embedding for Personalized Recommendation](http://xueshu.baidu.com/usercenter/paper/show?paperid=1h700ts0v17s0xc0ta6c0jx0bg055116&site=xueshu_se&hitarticle=1)，arXiv，2019，Xiao Sha
+****
+目前应用知识图谱（Knowledge Graph）的推荐都只关注用户-物品对在KG中的路径，没有挖掘KG中的语义信息和拓扑结构。
+因此，作者提出**注意力知识图嵌入（Attentive Knowledge Graph Embedding，AKGE）**，应用距离感知的抽样策略自动抽取含有丰富语义的高阶子图，然后利用注意力图网络从子图中学习用户兴趣。
+
+ # 1. 基础介绍
+作者介绍部分写的有因有果，我采用问答形式来整理下作者的思路。
+
+**问：为什么要使用高阶子图（high-order subgraph）来表示用户-物品的连接关系？**
+使用线性路径（linear path）来描述实体间关系时表达能力有限，高阶子图可以表达KG的语义信息和拓扑结构。
+**问：为什么使用距离感知抽样策略（Distance-aware Pampling Strategy，DPS）构建子图？**
+KG的规模往往较大，应用BFS等方法进行挖掘时全部计算的成本高。因此将耗时的子图挖掘转换为节省劳动力的路径抽样（path sampling），通过组装抽样的路径来构建子图。
+**问：为什么使用注意力图网络（Attentive Graph Neural Network，AGNN）对子图进行编码？**
+1.子图的非欧几里得结构适合使用GNN；
+2.KG是异构图，不同邻居通过不同的边连接，为了强调不同邻居的影响，使用注意力机制（这个思想与RippleNet一致）；
+
+总结一下，作者提出了AKGE框架，其中距离感知采样策略帮助自动挖掘用户-项目对之间的高阶语义子图；而注意力图神经网络旨在通过考虑KG的异构性来建模复杂的用户-项目连通性。
+# 2. AKGE结构
+![](https://upload-images.jianshu.io/upload_images/6802002-2e89b47751ad1ba3.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+AKGE的整体结构如图所示，可分为三个部分：
+1.子图构建（Subgraph Construction）
+2.注意力图神经网络（Attentive Graph Neural Network）
+3.MLP预测（MLP Predction）
+## 2.1 子图构建
+作者使用**距离感知抽样策略**抽取路径，通过**路径装配（Path Assembling）**构建子图。
+**距离感知抽样策略：**
+先使用TransR预训练KG中实体的嵌入，这样就可以通过欧氏距离计算两个相邻实体间的距离。通过沿路径不断求和，可以获得整条路径的距离。最后仅保留距离最短的K条路径用于构造语义子图。
+>这里和BFS/DFS的构建子图的方法的区别就是通过计算距离进行了一次邻居筛选，而没有选择所有的邻居。
+
+**路径装配：**
+![](https://upload-images.jianshu.io/upload_images/6802002-7b6bdc936b4adad2.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+如图所示，当抽样出路径构成子图后，装配成一个邻近矩阵(adjacency matrix)$A$，将每个实体和连接沿着路径映射到子图。
+## 2.2 注意力图网络（AGNN）
+AGNN是对GGNN（gated graph neural network）的改进，区别在于GGNN应用在同构图上，而AGNN是用在异构图KG上。
+AGNN分为四步：
+**实体映射（entity projection）**
+**关系感知传播（relation-aware propagation）**
+**注意力聚合（attentive aggregation）**
+**门控更新（gated update）**
+### 2.2.1 实体映射
+![](https://upload-images.jianshu.io/upload_images/6802002-945c242db58219e7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)输入为子图$G_s= \{ \xi_s,L_s \} $和邻近矩阵$A_s$，实体$e_l$由TransR的预训练初始化。对子图中的每个实体$e_l \in \mathbb{R}^d$以及实体的类型$e_l' \in \mathbb{R}^{d'}$进行拼接：
+$$h^0_l=\hat{e}_l = f(e_l ⊕ e_l')$$这就是与GNN的不同---考虑异构图中实体的类型。
+### 2.2.2 关系感知传播
+![](https://upload-images.jianshu.io/upload_images/6802002-f1f44d129f71bb73.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)AGNN通过邻居$e_k$的emb的传播和聚合来更新$e_l$的emb。
+$$\hat{h}^t_k=g(h^t_k ⊕ r_{l,k})，e_k \in N_l$$其中，$r_{l,k} $是$e_l$和它的邻居$e_k$之间的边。通过传播，得到邻居实体$e_k$的关系感知隐藏状态$\hat{h}^t_k$。
+### 2.2.3 注意力聚合
+![](https://upload-images.jianshu.io/upload_images/6802002-c510b1801b15283f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)AGNN通过注意力机制去聚合$e_l$在第t个step传播的邻居信息。
+$$a^t_l=(A_{s_l}⊙Q^{t}_l)[\hat{h}^{t-1}_1,···，\hat{h}^{t-1}_{|\xi_s|}]^⊤+b$$其中，$A_{s_l}\in \mathbb{R}^{|\xi_s|}$是矩阵$A_s$中$e_l$那一行，$|\xi_s|$表示子图$G_s$中$e_l$邻居的数量，⊙表示哈达玛积，$Q^{t}_l \in \mathbb{R}^{|\xi_s|}$表示标准化后的注意力权值。
+注意力权值与DKN一样，由两层全连接神经网络得到，并通过softmax标准化。
+### 2.2.3 门控更新
+![](https://upload-images.jianshu.io/upload_images/6802002-301ae749b6b2232f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)有了$a^t_l$后，最后通过门控机制去更新$h^{t-1}_l$的embedding。
+$z^t_l=\sigma(W_za^t_l+U_zh^{t-1})$
+$r^t_l=\sigma(W_ra^t_l+U_rh^{t-1})$
+其中，$z^t_l$是更新门，$r^t_l$是重置门，更新结果为：
+$\tilde{h}^t_l=tanh(W_ha^t_l+U_h(r^t_l⊙h^{t-1}))$
+$h^t_l=(1-z^t_l)⊙h^{t-1}_l+z^t_l⊙\tilde{h}^t_l$
+## 2.3 MLP预测
+没有使用点积预测，而是使用MLP：
+$\hat{r}_{u,i}=MLP(e_u⊙e_i)$
+# 3. 损失函数
+交叉熵损失：$J=-\sum_{(u,i)\in R^+}log\hat{r}_{u,i}+\sum_{(u,i)\in R^-}log(1-\hat{r}_{u,i})$
+# 4. 实验结果
+实验数据：![](https://upload-images.jianshu.io/upload_images/6802002-48b71014cf892148.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)movie：ML-1M，KG：IMDb
+mosic：Last-FM，KG：Freebase
+business：Yelp，KG：social network 和 local business information network
+实验结果：![](https://upload-images.jianshu.io/upload_images/6802002-1a29765aec17fc48.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+超参数探究：
+![](https://upload-images.jianshu.io/upload_images/6802002-cb86ff7fa32dea60.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)![](https://upload-images.jianshu.io/upload_images/6802002-3db5472ad72c0d3f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+# 5. 总结
+本文提出**注意力知识图嵌入（Attentive Knowledge Graph Embedding，AKGE）**，应用距离感知的抽样策略抽取高阶子图，然后利用注意力图网络从子图中学习用户兴趣。
+**值得学习的点有：**
+1.使用拼接而非计算的方式去聚合：比如**实体和实体类型，实体和实体边**，这样可能会比做点积/内积保留更多信息；
+2.与RIppleNet类似，还是使用注意力机制去描述邻居的权值，只是注意力机制与DKN相同，与RippleNet不同；
+3.使用门控更新，而非直接替换，作者没有分析这一步的效果，感觉可能意义不大，但有尝试精神；
+4.使用MLP预测而非点积预测。

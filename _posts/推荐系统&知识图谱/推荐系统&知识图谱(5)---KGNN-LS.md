@@ -1,0 +1,36 @@
+论文：[Knowledge-aware Graph Neural Networks with Label Smoothness Regularization for Recommender Systems](https://arxiv.org/abs/1905.04413)，KDD，2019，Meituan Dianping Group
+
+ # 1. 应用背景
+KGNN-LS 可以看做是对KGCN的改进，是在GCN之后添上了LS，来提升模型的鲁棒性，防止过拟合。但从实验结果来看，提升不大（几乎没有）。
+# 2. 模型结构
+## 2.1 符号定义
+因为涉及到的公式和推导较多，先贴出符号定义：
+![](https://upload-images.jianshu.io/upload_images/6802002-b31c70cb31bc20ad.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+## 2.2 KGNN部分
+KGNN这里在原理和实现上是和KGCN一模一样的，非常佩服作者的文笔，愣是一篇内容写出了两篇不一样的表述。这里一边推导一边学习一下表达。
+记一个用户为：$u \in \mathbb{R}^{d_o}$；
+记知识图谱中的实体集合为：$E \in \mathbb{R}^{| \xi| \times d_o}$
+记实体$e_i$与$e_j$的关系边为：$r_{e_i,e_j} \in \mathbb{R}^{d_0}$；
+记用户$u$对关系$r$的得分为：$A^{ij}_u=s_u(r_{e_i,e_j})$
+**推导如下：**
+0.则用户$u$的评分矩阵为：$A_u \in  \mathbb{R}^{| \xi| \times | \xi| }$；
+记$A_u$的对角矩阵为：$D_u$，即$D_u^{ii}=\Sigma _j A_u^{ij}$，用于标准化$A_u$；
+1.则逐层向前传播：$$H_{l+1}=\sigma(D_u^{-1/2}A_uD_u^{-1/2}H_lW_l)$$这个式子等价于KGCN中的：$$e^u[h] \leftarrow agg_{sum}(e^u_{S(e)}[h-1],e^u[h-1])$$换了个形式而已。
+## 2.3 Label Smoothness部分
+标签平滑正则化（Label Smoothness Regularization）是本文的创新点。
+因为每条边的评分也是监督训练的，这在增加模型的拟合能力的同时也会让模型易过拟合，因此提出了标签平滑性损失来作为正则化项约束模型的拟合能力。
+
+作者在文中推导了很多，实际做法分2步：
+1.在KG中，用有标签(0/1)的**实体**去加权预测无标签的实体的标签，循环迭代，为所有无标签的实体建立标签。
+2.训练过程中，将有标签的**物品**的标签扣掉，用同样的预测方法，用物品对应的实体的近邻实体（包括有标签的近邻实体和无标签的近邻实体）的标签去预测该物品的标签，得到物品$v$标签的预测值$\hat{l}_u(v)$。
+
+贴上举例说明：![](https://upload-images.jianshu.io/upload_images/6802002-202f0f24c84b40a5.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+## 2.4 损失函数
+$$L=L_{gnn}+L_{ls}+L_{regularize}=\sum J(y_{uv}, \hat{y}_{uv})+\lambda_1 \sum J(y_{uv}, \hat{l}_{u}(v))+\lambda_2 ||F||^2_2$$损失函数可以看出，相较于KGCN，主要多了一项LS的预测损失。
+# 3. 实验结果
+![](https://upload-images.jianshu.io/upload_images/6802002-65a8408a64a190ee.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)实验结果上，使用GNN确实比RippleNet好了一点，**但是：**
+1.KGNN-LS没有与KGCN进行比较，我自己实验比较了一下，效果差别非常小。
+2.作者没有详细分析LS的作用有多大，我去掉之后，发现实验结果几乎不变，可见LS的功效非常非常小。
+# 4. 总结
+怎么说呢，LS推导了很长一段，花了两个定理和证明。我跟着推了好半天才弄懂他要干嘛。结果并没有什么效果还是挺失望的。整体来说，说到底还是GNN的效果，与KGCN相差不大。这篇论文的话，作者一份工作能掰成两篇论文来写的写作功底值得学习。

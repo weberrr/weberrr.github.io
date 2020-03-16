@@ -1,0 +1,46 @@
+论文：[Neural Graph Collaborative Filtering](http://xueshu.baidu.com/usercenter/paper/show?paperid=1x5308f0fm3400k0rr5b0xk05y198089&site=xueshu_se)，SIGIR，2019，Wang Xiang, He Xiangnan
+****
+推荐系统的关键就是获取用户和物品的embeddings。
+目前的协同过滤方法中的embedding的问题在于：没有在embedding过程中编码入**协同信号（collaborative signal）**，导致embedding的结果不足以捕获协同过滤的效果。
+因此作者提出了**神经图协同过滤（Neural Graph Collaborative Filtering，NGCF）**，使用图结构来表达用户-物品的交互信息，建模用户-物品在图网络中的高阶连通性，从而显示的将协同信号注入embedding过程中。
+ # 1. 背景介绍
+**目前协同过滤方法的问题有两点：**
+1.没有编码协同信号（collaborative signal），只通过交互函数去表达交互信息；
+2.现实场景交互数据规模大，使用传统的树结构难以提取协同信号；
+![](https://upload-images.jianshu.io/upload_images/6802002-8cc7b29f1c6bcd3c.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)因此作者采用图结构，利用图网络来捕获用户-物品的高阶连通性，提出了**NGCF**。
+如右图所示，采用图结构之后，可以清楚表达用户和物品在高阶的关系。如：在$i_4$和$i_5$之间，$u_1$更喜欢$i_4$，因为$u_1$和$i_4$之间有两条通路。
+# 2. NGCF结构
+NGCF的结构如图所示，分为三部分：
+**Embeddings 层**：初始化用户和物品的embedding
+**Multiple Embedding Propagation 层**：通过高阶连通图来训练embedding
+**Prediction 层**：聚合embedding表示，输出预测值
+![](https://upload-images.jianshu.io/upload_images/6802002-21737e436abf5efc.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+## 2.1 Embedding层
+embedding层就是给用户和物品随机初始化一个可训练的embedding。
+用户$u$：$e_u\in \mathbb{R}^d$
+物品$i$：$e_i\in \mathbb{R}^d$
+embedding矩阵：$E=[e_{u_1},...,e_{u_N}，e_{i_1},...,e_{i_M}]$
+## 2.2 Embedding Propagation层
+**嵌入的传播学习**多层做法与第一层相同，只是重复多次，这里以一层为例。
+第一层的传播分为两步：**消息构建**，**消息聚合**。
+### 消息构建
+对于连接的用户-物品对$(u,i)$，定义物品$i$传播给用户$u$的消息向量为：$m_{u \leftarrow i}=f(e_i,e_u,p_{ui})$，其中$p_{ui}$为每次传播时边$(u,i)$的衰减因子。
+**作者的具体做法是：**$$m_{u \leftarrow i}=\frac{1}{\sqrt{|N_u||N_i|}}(W_1e_i+W_2(e_i \bigodot e_u))$$其中，$p_{ui}$为拉普拉斯算子$\frac{1}{\sqrt{|N_u||N_i|}}$，$N_u$和$N_i$表示用户$u$和物品$i$的邻居。
+公式中，$e_i$表示物品$i$的贡献，$e_i$与$e_u$的点积表示用户$u$与物品$i$的关系亲密度，二者共同构成了物品$i$对用户$u$的消息贡献。
+### 消息聚合
+聚合用户$u$所有邻居传递的消息，来更新$u$的向量表示：$$e_u^{(1)}=LeakyReLU(m_{u \leftarrow u}+\sum_{i\in N_{u}} m_{u \leftarrow i})$$其中，$(1)$表示一层传播，$m_{u \leftarrow u}$表示自连接。
+### 高阶传播
+如图，给出了一个协同信号$“u_1 \leftarrow i_2 \leftarrow u_2 \leftarrow i_4”$在embedding传播过程被捕获的示例。
+![](https://upload-images.jianshu.io/upload_images/6802002-2081da5bb5ea41ab.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+## 2.3 Prediction层
+用户表示：$e_u^*=e_u^{(0)}||···||e_u^{(L)}$
+物品表示：$e_i^*=e_i^{(0)}||···||e_i^{(L)}$
+其中，$||·||$表示拼接
+预测结果为：$\hat{y}(u,i)=e_u^{*\mathbb{T}}e_i^*$
+
+#3. 损失函数
+作者使用pairwise的损失函数：
+$$Loss=\sum_{(u,i,j)\in O}-ln \sigma(\hat{y}_{ui}-\hat{y}_{uj})+\lambda ||\Theta||^2_2$$
+#4. 实验结果
+与其他协同过滤方法的比较:![](https://upload-images.jianshu.io/upload_images/6802002-75aa8251d6ca1811.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+不同层数的影响：![](https://upload-images.jianshu.io/upload_images/6802002-4ef28b2bff1efc0c.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)

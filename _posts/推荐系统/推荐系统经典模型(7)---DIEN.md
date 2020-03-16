@@ -1,0 +1,219 @@
+论文：
+[Deep Interest Evolution Network for Click-Through rate Prediction](https://arxiv.org/abs/1809.03672)，AAAI，2019，阿里
+
+简介：
+DIEN 是在 DIN 的基础上提出的。
+在思想上，DIEN 相较于 DIN，考虑了序列信息。
+在设计上，DIEN 设计了 Interest Extrator Layer 和 Interest Evolving Layer 两个模块。 Interest Extrator Layer 结合负采样的 auxiliary loss，从序列化的用户历史行为中提取用户兴趣；Interest Evolving Layer 将 Attention 和 GRU 的 update gate 相结合提出AUGRU，建模用户历史行为中的兴趣进化过程，从而形成嵌入表示。
+
+# 1. BaseModel
+DIEN 中描述了BaseModel，所做出的改进也是基于BaseModel，结构如图所示。
+![](https://upload-images.jianshu.io/upload_images/6802002-a1cde7a465f497ba.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+稀疏向量 --- one-hot 表示 ---- Embedding ---- 定长稠密向量 --- MLP
+**但这样做存在问题：**
+用户最终的行为应该只和历史中的部分行为有关，应该对历史行为进行区分。
+DIN 提出使用注意力机制进行区分，但没有考虑历史行为的序列特征。
+# 2. DIEN
+![](https://upload-images.jianshu.io/upload_images/6802002-a62f92b150fa32e5.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+DIEN在 BaseModel基础上，其他地方不变，主要对历史行为建模进行改进，主要设计的两个模块： Interest Extractor 和 Interest Evolving。
+### Interest Extractor Layer
+考虑到历史行为的序列特性，使用GRU进行兴趣抽取：$$
+\begin{aligned}
+&u_t = \sigma (W^u i_t + U^u h_{t-1} + b^u)
+\\
+&r_t = \sigma(W^r i_t + U^r h_{t-1} + b^r )
+\\
+&  \tilde h_t = tanh (W^h i_t  + r_t · U^h h_{t-1} + b^h)
+\\
+&
+h_t = (1-u^t) · h_{t-1} + u^t ·\tilde h_t 
+\end{aligned}
+$$但有个问题，抽取的第$t$个行为的兴趣表示 $h_t$ 时，使用 GRU 考虑了序列信息，这种方式对于 $h_{T}$的兴趣建模很有帮助，但不能充分表示每个时刻 如，$h_t(t<T)$的兴趣向量。
+
+基于此，添加约束：
+约束每个时刻的兴趣表示可以预测下一时刻的的点击以及负采样下的不点击行为。
+所以添加 负采样 和使用 辅助损失，提升每个时刻的兴趣嵌入的表达能力。$$
+L_{aux} = - \frac{1}{N}( \sum_{i=1}^N \sum_t \log ( \sigma ([h_t^i,e_b^i[t+1]] )) + 
+\log(1-\sigma([h_t^i,\hat e_b^i[t+1]])))
+$$其中，$h_t^i$是第$i$个用户的第$t$个行为提取的兴趣向量，$e_b^i[t+1]$是该用户$t+1$时刻的行为的嵌入向量，$\hat e_b^i[t+1]$是$t+1$时刻的负采样的嵌入向量。
+从损失可以看出，希望加强每个时刻的兴趣向量的表示。
+### Interest Evolving Layer
+用户的兴趣是不断进化的。且在变化过程中，会有多个兴趣轨迹。
+所以在建模时，我们需要把序列行为中与当前 ad 相关的子兴趣提取出来，再对子兴趣进行序列建模。
+##### Attention
+用当前 ad 的 emb 和 兴趣 $h_t$计算注意力：$$
+a_t = \dfrac {\exp(h_t W e_a)} {\sum_{i=1}^N \exp({h_t We_a})}
+$$其中，$e_a$是 ad 的 emb，W是权值矩阵。
+##### AUGRU
+文章提到了三种 注意力 和 GRU 结合的方式，AIGRU，AGRU，AUGRU
+AIGRU：改变兴趣 emb 的权值：$$
+i_t' = a_t * h_t
+$$缺点：会影响后续GRU的学习。
+
+AGRU：用 注意力 代替 更新门：$$
+h_t' = (1-a_t)h'_{t-1} + a_t · \tilde h_t'
+$$缺点：注意力是一个标量，这样做忽略了不同维度的重要性差别。
+
+这里主要说第三种，AUGRU：$$
+\begin{aligned}
+u'_t = & a_t * u_t'
+\\
+h_t' = & (1-u'_t)h'_{t-1} + u'_t · \tilde h_t'
+\end{aligned}
+$$使用加权的更新门，加权强调和目标 ad 的相似度，用门强调不同维度的差异。
+# 3. 具体实现
+实验结果可以看paper，这里不贴了。
+最近在 deepctr-torch 中贡献了 dien 的 model 实现，这里说下具体实现的一些细节。
+### Interest Extractor Layer
+这里用到了pytorch提供的`pack_padded_sequence`和`pad_packed_sequence` 来处理padding过的序列化数据。举例来说，输入的用户历史行为是padding过的定长向量，如 [1,2,0,0]，同时输入行为长度 2 ，表示行为中后两位是填充位，如果参与 GRU，会影响参数学习，所以在过GRU前后需要使用这两个包来处理。
+```
+class InterestExtractor(nn.Module):
+    def __init__(self, input_size, use_neg=False, init_std=0.001):
+        super(InterestExtractor, self).__init__()
+        self.use_neg = use_neg
+        self.gru = nn.GRU(input_size=input_size, hidden_size=input_size, batch_first=True)
+
+    def forward(self, keys, keys_length, neg_keys=None):
+        """
+        Parameters
+        ----------
+        keys: 3D tensor, [B, T, H]
+        keys_length: 1D tensor, [B]
+        neg_keys: 3D tensor, [B, T, H]
+
+        Returns
+        -------
+        interests: 2D tensor, [B, H]
+        """
+        batch_size, max_length, dim = keys.size()
+        packed_keys = pack_padded_sequence(keys, lengths=keys_length, batch_first=True, enforce_sorted=False)
+        packed_interests, _ = self.gru(packed_keys)
+        interests, _ = pad_packed_sequence(packed_interests, batch_first=True, padding_value=0.0,
+                                           total_length=max_length)
+```
+### Auxiliary Loss
+我们在 Interest Extractor 时，还需要计算辅助的损失。
+
+作者的code与paper中有点差别，文中的辅助损失是直接计算$h_t$和$e_b[t+1]$或 $\hat e_b[t+1]$的内积，code中是将这两部分向量过了一个[100,50,1]的 MLP，通过MLP来代替内积计算。
+
+另外，作者在code中，也只在负采样的时候计算 aux loss，这也比较好理解。
+```
+def _cal_auxiliary_loss(self, states, click_seq, noclick_seq, keys_length):
+    """
+    Parameters
+    ----------
+    states: 3D tensor, [B, T, H]
+    click_seq: 3D tensor, [B, T, H]
+    noclick_seq: 3D tensor, [B, T, H]
+    keys_length: 1D tensor, [B]
+
+    Returns
+    -------
+    aux_loss: 1D tensor, [B]
+    """
+    batch_size, max_seq_length, embedding_size = states.size()
+    
+    mask = (torch.arange(max_seq_length).repeat(batch_size,1)<keys_length.view(-1,1)).float()
+    click_input = torch.cat([states, click_seq], dim=-1)
+    noclick_input = torch.cat([states,noclick_seq], dim=-1)
+    
+    click_p = self.auxiliary_net(click_input.view(batch_size * max_seq_length, embedding_size * 2))
+    click_p = click_p.view(batch_size, max_seq_length)[mask>0].view(-1,1)
+    click_target = torch.ones(click_p.size(),dtype=torch.float)
+
+    noclick_p = self.auxiliary_net(noclick_input.view(batch_size * max_seq_length, embedding_size * 2))
+    noclick_p = noclick_p.view(batch_size, max_seq_length)[mask>0].view(-1,1)
+    noclick_target = torch.zeros(noclick_p.size(), dtype=torch.float)
+    
+    loss = F.binary_cross_entropy(torch.cat([click_p,noclick_p],dim=0),torch.cat([click_target,no_click_target],dim=0))
+    return loss
+```
+### Attention Net
+因为用到了注意力机制，使用的是和din一样的attention。这里给出 attention net的结构。
+网络结构：dnn_hidden_units为 [80,40] 的mlp
+输入结构：使用 query, keys, query - keys, query * keys, 4个向量作为输入
+```
+class AttentionNet(nn.Module):
+    def __init__(self, input_size,
+                 dnn_hidden_units,
+                 activation='relu'):
+        super(AttentionNet, self).__init__()
+        self.mlp = DNN(input_size * 4,
+                       dnn_hidden_units,
+                       activation=activation)
+        self.fc = nn.Linear(dnn_hidden_units[-1], 1)
+
+    def forward(self, query, keys, keys_length):
+        """
+        Parameters
+        ----------
+        query: 2D tensor, [B, H]
+        keys: 3D tensor, [B, T, H]
+        keys_length: 1D tensor, [B]
+
+        Returns
+        -------
+        att_scores: 2D tensor, [B, T]
+        """
+        batch_size, max_length, dim = keys.size()
+
+        query = query.unsqueeze(1).expand(-1, max_length, -1)
+        din_all = torch.cat(
+            [query, keys, query - keys, query * keys], dim=-1)
+        din_all = din_all.view(batch_size * max_length, -1)
+        outputs = self.mlp(din_all)
+        outputs = self.fc(outputs).view(batch_size, max_length)  # [B, T]
+
+        # Scale
+        outputs = outputs / (dim ** 0.5)
+
+        # Mask
+        mask = (torch.arange(max_length, device=keys_length.device).repeat(
+            batch_size, 1) < keys_length.view(-1, 1))
+        outputs[~mask] = -np.inf
+
+        # Activation
+        outputs = F.softmax(outputs, dim=1)  # [B, T]
+
+        return outputs
+
+```
+
+### AUGRU
+最后就是作者设计的AUGRU模块，将GRU与Attention相结合。如果会手写GRU的话，ARGRUCell会很简单：
+```
+class AUGRUCell(nn.Module):
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(AUGRUCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        # (W_ir|W_iz|W_ih)
+        self.weight_ih = nn.Parameter(torch.Tensor(3 * hidden_size, input_size))
+        # (W_hr|W_hz|W_hh)
+        self.weight_hh = nn.Parameter(torch.Tensor(3 * hidden_size, hidden_size))
+        if bias:
+            # (b_ir|b_iz|b_ih)
+            self.bias_ih = nn.Parameter(torch.Tensor(3 * hidden_size))
+            # (b_hr|b_hz|b_hh)
+            self.bias_hh = nn.Parameter(torch.Tensor(3 * hidden_size))
+        else:
+            self.register_parameter('bias_ih', None)
+            self.register_parameter('bias_hh', None)
+
+    def forward(self, input, hx, att_score):
+        gi = F.linear(input, self.weight_ih, self.bias_ih)
+        gh = F.linear(hx, self.weight_hh, self.bias_hh)
+        i_r, i_z, i_n = gi.chunk(3, 1)
+        h_r, h_z, h_n = gh.chunk(3, 1)
+
+        reset_gate = torch.sigmoid(i_r + h_r)
+        update_gate = torch.sigmoid(i_z + h_z)
+        new_state = torch.tanh(i_n + reset_gate * h_n)
+
+        att_score = att_score.view(-1, 1)
+        update_gate = att_score * update_gate
+        hy = (1. - update_gate) * hx + update_gate * new_state
+        return hy
+```
+将 AUGRU 模块加入到代码，需要先写一个 DynamicGRU 模块，实现其类似rnn/gru的forward循环模式，再用 封装的 DynamicGRU 来实现 Interest Evolving。
