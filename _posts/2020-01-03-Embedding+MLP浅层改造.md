@@ -13,9 +13,16 @@ tags:
 
 这篇总结梳理的是具备 Embedding + MLP 这样结构的模型，之所以称为**浅层改造**，主要原因在于这些模型都是在embedding层的一些改变：使用复杂的操作让模型在浅层尽可能包含更多的信息，降低后续MLP的学习负担。
 
+[Product-based neural networks for user response prediction](https://ieeexplore.ieee.org/abstract/document/7837964)，2016，IEEE
+
+
+[Neural factorization machines for sparse predictive analytics](https://dl.acm.org/doi/abs/10.1145/3077136.3080777)，2017，SIGIR
+
+[Operation-aware Neural Networks for User Response Prediction](https://www.sciencedirect.com/science/article/pii/S0893608019302850)，2019，Elsevier
+
 # 1. FNN
 
-FNN（Factorization Machine supported Neural Network）使用 FM 预训练的 embedding 作为 MLP 的输入。本质上也是二阶段模型，与 GBDT+LR 一脉相承。
+FNN（Factorization Machine supported Neural Network）是2016年提出的方法。使用 FM 预训练的 embedding 作为 MLP 的输入。本质上也是二阶段模型，与 GBDT+LR 一脉相承。
 
 ![FNN](https://tva1.sinaimg.cn/large/00831rSTgy1gd3mcxgk7ej30jp0fhado.jpg)
 
