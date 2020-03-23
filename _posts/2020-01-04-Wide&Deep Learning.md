@@ -17,7 +17,7 @@ tags:
 Google Play是一个由Google为Android设备开发的**在线应用程序商店**（类似于apple store），可以让用户去浏览、下载及购买在Google Play上的第三方应用程序。Google Play拥有超过10亿活跃用户和超过100万个应用。WDL的应用场景就是Google Play的app推荐。
 # 2.overview
 推荐系统可以看作一个搜索排序系统，其中输入语句是一组用户和上下文信息，输出是一个排了序的商品列表。给定一个查询语句，推荐任务是在数据库中查询相关的商品，然后基于某些目标（例如点击或者购买）对商品排名。app推荐系统的框架如图所示。
-![overview](https://upload-images.jianshu.io/upload_images/6802002-51f3e4cf00e89b56.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![overview](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yiwplyoj30lh0bcta7.jpg)
 
 数据库中有超过一百万个应用程序，因此在服务延迟要求（通常为O(10)毫秒）内为每个查询语句全面的对每个app评分是不现实的。
 因此，推荐系统的整体架构由两个部分组成，**检索系统（或者说候选生成系统）**和**排序系统（排序网络）**。首先，用 检索(retrieval) 的方法对大数据集进行初步筛选，返回最匹配 query 的一部分物品列表，这里的检索通常会结合采用 **机器学习模型(machine-learned models)** 和 **人工定义规则(human-defined rules)** 两种方法。从大规模样本中召回最佳候选集之后，再使用 排序系统 对每个物品进行算分和排序。
@@ -31,7 +31,8 @@ Google Play是一个由Google为Android设备开发的**在线应用程序商店
 Wide&Deep Learning 主要就是应用在 Ranking 模型。
 # 3.Wide & Deep Models
 简单来说，人脑就是一个不断记忆（memorization）并且归纳（generalization）的过程，而这篇论文的思想，就是将宽线性模型（Wide Model，用于记忆，下图左侧）和深度神经网络模型（Deep Model，用于归纳，下图右侧）结合，汲取各自优势形成了 Wide & Deep 模型用于推荐排序（下图中间）。
-![wide&deep](https://upload-images.jianshu.io/upload_images/6802002-f8a7e1ecae5a5331.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![wide&deep](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yj0atdnj30yg08fgpj.jpg)
+
 ### Wide模型
 >**Memorization** can be loosely defined as learning the frequent co-occurrence of items or features and exploiting the correlation available in the historical data.
 
@@ -74,7 +75,7 @@ $$P(Y=1|x)=\sigma(w^T_{wide}[x,ϕ(x)]+w^T_{deep}a^{(l_f)}+b)$$
 
 # 4.系统实施
 如图展示了整个 Wide & Deep Learning 的整体运行流程。
-![pipeline](https://upload-images.jianshu.io/upload_images/6802002-96ef0f077eb1adb4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![pipeline](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yj4dh7hj30s80cyjwc.jpg)
 
 ### 数据生成
 **训练数据生成。**一段时间的用户和展示数据。一条数据对应一次展示，label是展示的这个app是否被安装的二分类标签。
@@ -91,9 +92,10 @@ occupation = tf.feature_column.categorical_column_with_hash_bucket(
 
 ### Model Training
 
-![train model](https://upload-images.jianshu.io/upload_images/6802002-225155b2af309445.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![train model](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yjaxu99j30rn0g3tao.jpg)
 **wide部分**：输入用户展示的app和安装的app的 **cross-product transformation（向量外积）**。
->这里论文里没有细说，我自己做了一个简单的尝试，体会了一下one-hot的向量外积是如何表示组合特征的。（字有点丑，请见谅~）![cross-product transformation](https://upload-images.jianshu.io/upload_images/6802002-1ce6ec977f1f6f3d.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+>这里论文里没有细说，我自己做了一个简单的尝试，体会了一下one-hot的向量外积是如何表示组合特征的。（字有点丑，请见谅~）![cross-product transformation](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yjebdkbj30yg0puwgc.jpg)
 
 >但是！去看了一些WDL的实现，发现在实现的时候，wide部分基本没有使用外积，多数使用类似于lookup的方式去找历史交互物品ids里有没有当前的候选id，和传统方式差别不大，只是有一些“记忆”的思想。
 >举例来说，看阿里DIN时看了其中关于WDL对照方法的实现，只使用了向量的某两三个值的乘积作为wide，我理解为一种向量抽样上的相似度，和lookup差别不大。
@@ -107,7 +109,7 @@ wide&deep模型在超过5000亿个样本的数据集上训练。需要注意的�
 # 5.实验结果
 度量的指标有两个，分别针对在线的度量和离线的度量，在线时，通过A/B test，最终利用安装率（Acquisition）；离线则使用AUC作为评价模型的指标。
 
-![1](https://upload-images.jianshu.io/upload_images/6802002-6dbd74142d63291e.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![1](https://tva1.sinaimg.cn/large/00831rSTgy1gd3yjhgqjvj30hx06fjs9.jpg)
 离线评估AUC提升不大，取了1%的用户在线评估，效果比较好。 解释是说离线数据是fixed的，在线能学新的用户responses。我的理解是因为排序结果变了，影响用户的点击，离线不能反映真实的用户行为。比如原来模型把差一点app的排上来，导致用户安装了。你把更好的排上了反而预测错了。
 
 # 6.总结
