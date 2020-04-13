@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      经典CTR模型(3)---Embedding+MLP结构下的浅层改造
+title:      经典CTR模型(3)---Embedding+MLP浅层改造
 subtitle:   FNN，PNN，NFM，ONN
 date:       2020-01-03
 author:     weber

@@ -1,15 +1,15 @@
 ---
 layout:     post
-title:      经典CTR模型(4)---WDL
+title:      经典CTR模型(2)---WDL
 subtitle:   Wide & Deep Learning for Recommender Systems
-date:       2020-01-04
+date:       2020-01-02
 author:     weber
 header-img: img/post-bg-ios9-web.jpg
 catalog: true
 tags:
     - recommender systems
     - CTR
---- 
+---
 
 论文：[Wide & Deep Learning for Recommender Systems](http://xueshu.baidu.com/usercenter/paper/show?paperid=7f6c393d1e5f37a50060aaebaac39cf9&site=xueshu_se&hitarticle=1&sc_from=buaa)，DLRS，2016，Google
 
