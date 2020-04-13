@@ -160,6 +160,10 @@ p，r，f1
 
 https://blog.csdn.net/qq_25737169/article/details/78847691
 
+# 9. batch 过大或者过小
+
+
+
 # x. 1x1的卷积核的作用
 
 1. 跨通道的特征整合
